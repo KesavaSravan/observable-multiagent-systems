@@ -1,0 +1,364 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "title": "Executive KPI Summary",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "id": 201,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Ingested Cart Value",
+      "type": "stat",
+      "targets": [{ "expr": "sum(ecommerce_cart_value_total)", "legendFormat": "Cart Ingested ($)" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 1 },
+      "id": 202,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Projected Recovered Revenue",
+      "type": "stat",
+      "targets": [{ "expr": "sum(ecommerce_recovered_revenue_total)", "legendFormat": "Recovered Revenue ($)" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 25 },
+              { "color": "green", "value": 30 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 1 },
+      "id": 203,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Average Preserved Gross Margin",
+      "type": "stat",
+      "targets": [{ "expr": "ecommerce_average_gross_margin_pct", "legendFormat": "Gross Margin %" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 1 },
+      "id": 204,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Promotional Discount Given",
+      "type": "stat",
+      "targets": [{ "expr": "sum(ecommerce_discount_burned_total)", "legendFormat": "Discount Burned ($)" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 1 },
+      "id": 205,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Overstock Units Cleared",
+      "type": "stat",
+      "targets": [{ "expr": "sum(ecommerce_overstock_cleared_total)", "legendFormat": "Units Sold" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }, { "color": "green", "value": 80 }] },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 1 },
+      "id": 206,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Merchandiser Approval Rate",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "(sum(ecommerce_merchandiser_hitl_decisions_total{decision=~\"auto_approved|human_approved\"}) / (sum(ecommerce_merchandiser_hitl_decisions_total) + 0.001)) * 100",
+          "legendFormat": "Approval %"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 210,
+      "title": "Financial Velocity & Unit Margins",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 7 },
+      "id": 211,
+      "title": "Recovered Revenue Rate vs Discount Burn ($ / Hour)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(ecommerce_recovered_revenue_total[5m])) * 3600",
+          "legendFormat": "Recovered Revenue ($/hr)"
+        },
+        {
+          "expr": "sum(rate(ecommerce_discount_burned_total[5m])) * 3600",
+          "legendFormat": "Discount Burn ($/hr)"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 25 },
+              { "color": "green", "value": 30 },
+              { "color": "blue", "value": 45 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 60
+        }
+      },
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 7 },
+      "id": 212,
+      "options": {
+        "orientation": "horizontal",
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      },
+      "title": "Real-Time Gross Margin Health (Policy Minimum: 30%)",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "ecommerce_average_gross_margin_pct",
+          "legendFormat": "Gross Margin %"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 220,
+      "title": "Merchandising Intelligence & Heuristics",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 16 },
+      "id": 221,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      },
+      "title": "Cart Hesitation Reason Breakdown",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sum by (reason) (ecommerce_hesitation_reasons_total)",
+          "legendFormat": "{{reason}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 16 },
+      "id": 222,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      },
+      "title": "Overstock Clearance by Category",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sum by (category) (ecommerce_overstock_cleared_total)",
+          "legendFormat": "{{category}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "id": 223,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "title": "Copywriter Linter Quality & Self-Correction",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum by (status) (ecommerce_copy_validation_total)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "id": 224,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "title": "Merchandiser Sign-Off Decisions",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum by (decision) (ecommerce_merchandiser_hitl_decisions_total)",
+          "legendFormat": "{{decision}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 225,
+      "title": "Real-Time SQLite Warehouse Stock & Clearance Engine",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "id": 226,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "title": "Real-Time Warehouse Stock by SKU (SQLite)",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "ecommerce_inventory_stock_units",
+          "legendFormat": "{{sku}} ({{category}})"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "id": 227,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "title": "Cumulative Overstock Units Bundled & Cleared",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sum by (sku) (ecommerce_overstock_cleared_total)",
+          "legendFormat": "{{sku}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["ecommerce", "cart-recovery", "margins", "revenue"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m"] },
+  "timezone": "browser",
+  "title": "Dashboard 2: E-Commerce Business & Cart Recovery Analytics",
+  "uid": "ecommerce-cart-recovery",
+  "version": 1
+}

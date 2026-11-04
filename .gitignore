@@ -1,0 +1,83 @@
+# ==============================================================================
+# Git Ignore Configuration - LangGraph + LangSmith + Grafana Observability
+# ==============================================================================
+
+# --- Secrets & Environment Variables (NEVER PUSH SECRETS TO GIT) ---
+.env
+.env.*
+.env.local
+.env.development
+.env.test
+.env.production
+!.env.example
+
+# --- Python Virtual Environments ---
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# --- Byte-compiled / Optimized / DLL Files ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Local SQLite Databases & WAL Logs ---
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+checkpoints.sqlite
+ecommerce_agent/data/*.db
+ecommerce_agent/data/*.db-wal
+ecommerce_agent/data/*.db-shm
+
+# --- Testing, Coverage & Type Checking ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# --- Logs, Telemetry & Temporary Output ---
+*.log
+*.tmp
+logs/
+runs/
+.system_generated/
+test_promql.py
+
+# --- Docker & Monitoring Volumes ---
+monitoring/prometheus/data/
+monitoring/grafana/data/
+.docker/
+
+# --- IDEs, Editors & Workspaces ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# --- Operating System Files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
