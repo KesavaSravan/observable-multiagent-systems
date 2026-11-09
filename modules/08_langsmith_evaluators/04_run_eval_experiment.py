@@ -15,6 +15,13 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from shared.config import settings
 from shared.llm_factory import get_chat_model
 
@@ -48,7 +55,14 @@ def main():
 
     if not settings.LANGCHAIN_API_KEY or settings.LANGCHAIN_API_KEY.startswith("lsv2_pt_your"):
         print("ℹ️ LANGCHAIN_API_KEY not configured. Simulating local benchmark run:")
-        from modules.08_langsmith_evaluators.01_create_dataset_programmatic import BENCHMARK_EXAMPLES
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "dataset_mod",
+            Path(__file__).parent / "01_create_dataset_programmatic.py"
+        )
+        dataset_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dataset_mod)
+        BENCHMARK_EXAMPLES = dataset_mod.BENCHMARK_EXAMPLES
         
         scores = []
         for idx, eg in enumerate(BENCHMARK_EXAMPLES, 1):

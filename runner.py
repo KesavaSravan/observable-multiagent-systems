@@ -190,8 +190,10 @@ def run_script(script_path: Path):
     print("-" * 76 + "\n")
 
     env = os.environ.copy()
-    # Pass root dir to PYTHONPATH
+    # Pass root dir to PYTHONPATH and enforce UTF-8 IO encoding on Windows
     env["PYTHONPATH"] = str(ROOT_DIR) + (os.pathsep + env.get("PYTHONPATH", ""))
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
 
     try:
         res = subprocess.run([sys.executable, str(script_path)], env=env)
@@ -297,19 +299,34 @@ def launch_ecommerce_menu():
     """E-Commerce Cart Recovery launcher submenu."""
     ecom_dir = ROOT_DIR / "ecommerce_agent"
     while True:
+        ecom_provider = (
+            os.getenv("PROJECT_ECOMMERCE_RECOVERY_PROVIDER")
+            or os.getenv("LLM_PROVIDER")
+            or settings.LLM_PROVIDER
+        ).upper()
+        ecom_model = (
+            os.getenv("PROJECT_ECOMMERCE_RECOVERY_DEFAULT_MODEL")
+            or os.getenv("LLM_MODEL")
+            or "default-model"
+        )
         print("\n" + "=" * 76)
         print(" 🛒 E-COMMERCE SWARM: HIGH-MARGIN CART RECOVERY & BUNDLE AGENT")
         print("=" * 76)
+        print(f" ⚙️  Active Model for E-Commerce: [{ecom_provider}] -> {ecom_model}")
+        print("-" * 76)
         print("  [1] Run Interactive Terminal CLI (cli.py)")
         print("  [2] Run Multi-Cart Continuous Traffic Generator (simulate.py)")
         print("  [3] Inspect SQLite Checkpoints & State History (inspect_checkpoints.py)")
         print("  [4] Open Grafana Dashboards Information")
+        print("  [M] 🔄 Switch E-Commerce Project Model & Provider")
         print("  [0] Back to Main Menu")
         print("-" * 76)
 
-        e_choice = input("Choose Option [1-4/0]: ").strip()
+        e_choice = input("Choose Option [1-4/M/0]: ").strip().upper()
         if e_choice == "0":
             break
+        elif e_choice == "M":
+            prompt_model_selection(project_id="ecommerce_recovery")
         elif e_choice == "1":
             run_script(ecom_dir / "cli.py")
         elif e_choice == "2":

@@ -15,14 +15,36 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-# Load environment variables from .env file located at root
+import re
+
+# Load environment variables from .env file located at root (override=False to preserve runtime overrides)
 ROOT_DIR = Path(__file__).parent.parent
 ENV_PATH = ROOT_DIR / ".env"
 
 if ENV_PATH.exists():
-    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    load_dotenv(dotenv_path=ENV_PATH, override=False)
 else:
-    load_dotenv(override=True)
+    load_dotenv(override=False)
+
+
+def update_env_file(key_values: dict[str, str]):
+    """Persists updated environment variables directly to .env file and updates os.environ."""
+    for key, val in key_values.items():
+        os.environ[key] = str(val)
+
+    if not ENV_PATH.exists():
+        return
+    try:
+        content = ENV_PATH.read_text(encoding="utf-8")
+        for key, val in key_values.items():
+            pattern = re.compile(rf"^{re.escape(key)}\s*=.*$", re.MULTILINE)
+            if pattern.search(content):
+                content = pattern.sub(f"{key}={val}", content)
+            else:
+                content += f"\n{key}={val}"
+        ENV_PATH.write_text(content, encoding="utf-8")
+    except Exception as e:
+        print(f"[WARN] Could not update .env: {e}")
 
 
 class Settings:

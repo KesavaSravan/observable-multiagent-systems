@@ -30,7 +30,8 @@ from shared.metrics import (
     track_ecommerce_linter,
     track_ecommerce_merchandiser_hitl,
     track_tokens,
-    NODE_LATENCY_HISTOGRAM
+    NODE_LATENCY_HISTOGRAM,
+    TOOL_INVOCATIONS_COUNTER
 )
 from shared.config import settings
 from ecommerce_agent.data.catalog import ABANDONED_CART_PRESETS
@@ -104,11 +105,17 @@ def run_continuous_simulation(iterations: int = 25, delay_seconds: float = 1.5):
         else:
             track_ecommerce_merchandiser_hitl("auto_approved")
 
+        # 5b. Tool Invocations
+        TOOL_INVOCATIONS_COUNTER.labels(tool_name="search_overstock_accessories", status="success").inc()
+        TOOL_INVOCATIONS_COUNTER.labels(tool_name="simulate_bundle_economics", status="success").inc()
+        TOOL_INVOCATIONS_COUNTER.labels(tool_name="generate_dynamic_coupon", status="success").inc()
+        TOOL_INVOCATIONS_COUNTER.labels(tool_name="dispatch_omnichannel_offer", status="success").inc()
+
         # 6. LLM Token & Cost Attribution (Tagged with active project_id)
         prov, mod, base_cost = random.choice(models)
         p_tok = random.randint(450, 1800)
         c_tok = random.randint(120, 500)
-        track_tokens(prov, mod, p_tok, c_tok, cost_usd=base_cost * random.uniform(0.8, 1.2))
+        track_tokens(prov, mod, p_tok, c_tok, cost_usd=base_cost * random.uniform(0.8, 1.2), project_id="ecommerce_recovery")
 
         rem_stock = dep_res.get("remaining_stock", "N/A")
         print(f"[{i:02d}/{iterations:02d}] Cart {preset['cart_id']} ({c_name[:12]}) | Val: ${cart_total:>6.2f} | Recv: ${recovered_usd:>6.2f} ({margin_pct:.1f}% Margin) | Bundled: {cleared_sku} (Stock: {rem_stock})")
@@ -116,7 +123,10 @@ def run_continuous_simulation(iterations: int = 25, delay_seconds: float = 1.5):
 
     print("\n" + "=" * 78)
     print("✅ Completed Simulation Run! Check Grafana Dashboards to see the live metrics.")
-    print("=" * 78 + "\n")
+    print("=" * 78)
+    print("📡 Prometheus Telemetry Server is running on http://localhost:8000/metrics")
+    print("   Open Grafana now to inspect live charts: http://localhost:3000/d/llm-agent-tracker")
+    input("👉 Press [Enter] to exit and stop the telemetry server...\n")
 
 
 if __name__ == "__main__":
