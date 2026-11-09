@@ -14,9 +14,17 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from langchain_core.tools import tool
 from langchain_core.messages import AIMessage
 from langgraph.prebuilt import ToolNode
+from langgraph.graph import StateGraph, MessagesState, START, END
 
 
 @tool
@@ -52,9 +60,15 @@ def main():
     print(f"  Tool: {simulated_ai_message.tool_calls[0]['name']}")
     print(f"  Args: {simulated_ai_message.tool_calls[0]['args']}")
 
-    # 3. Invoke ToolNode
+    # 3. Invoke ToolNode via StateGraph
     print("\n⚙️ Invoking ToolNode...")
-    response_state = tool_node.invoke({"messages": [simulated_ai_message]})
+    builder = StateGraph(MessagesState)
+    builder.add_node("tools", tool_node)
+    builder.add_edge(START, "tools")
+    builder.add_edge("tools", END)
+    graph = builder.compile()
+
+    response_state = graph.invoke({"messages": [simulated_ai_message]})
 
     print("\n📦 Output Messages from ToolNode:")
     for msg in response_state["messages"]:

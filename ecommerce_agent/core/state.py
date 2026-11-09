@@ -2,7 +2,8 @@
 E-Commerce Cart Recovery State Schema
 """
 
-from typing import TypedDict, List, Dict, Any, Optional
+from typing import TypedDict, List, Dict, Any, Optional, Annotated
+import operator
 
 
 class CartRecoveryState(TypedDict):
@@ -45,4 +46,4 @@ class CartRecoveryState(TypedDict):
     next_step: str
     iteration: int
     execution_status: str            # "analyzing", "waiting_for_merchandiser", "dispatched", "rejected"
-    audit_log: List[str]
+    audit_log: Annotated[List[str], operator.add]

@@ -10,6 +10,7 @@ from prometheus_client import (
     Histogram,
     Gauge,
     start_http_server,
+    generate_latest,
     REGISTRY
 )
 

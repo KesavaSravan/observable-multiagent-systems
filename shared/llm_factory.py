@@ -21,7 +21,7 @@ import re
 from typing import Optional, Any, List
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, AIMessage
-from shared.config import settings
+from shared.config import settings, update_env_file
 
 # Default recommended models per provider
 RECOMMENDED_MODELS = {
@@ -112,6 +112,7 @@ class TokenAndCostTrackingCallback(BaseCallbackHandler):
                    ((completion_tokens / 1_000_000) * rates["completion"])
 
         if prompt_tokens or completion_tokens:
+            print(f"  📊 [LLM Observability] Project: '{self.project_id}' | Provider: [{self.provider.upper()}] | Model: '{self.model_name}' | Tokens: {prompt_tokens + completion_tokens} (Prompt: {prompt_tokens}, Completion: {completion_tokens}) | Cost: ${cost_usd:.5f}")
             track_tokens(
                 provider=self.provider,
                 model=self.model_name,
@@ -124,6 +125,8 @@ class TokenAndCostTrackingCallback(BaseCallbackHandler):
 
 class MockChatModel(BaseChatModel):
     """Fallback mock chat model for offline testing and dry-run execution."""
+    model_name: str = "mock-model"
+    target_project_id: Optional[str] = None
 
     def _generate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None, run_manager: Any = None, **kwargs: Any) -> Any:
         from langchain_core.outputs import ChatResult, ChatGeneration
@@ -137,8 +140,9 @@ class MockChatModel(BaseChatModel):
             usage_metadata={"input_tokens": p_tokens, "output_tokens": c_tokens, "total_tokens": p_tokens + c_tokens}
         )
         generation = ChatGeneration(message=msg)
-        target_pid = os.getenv("PROJECT_ID", getattr(settings, "PROJECT_ID", "default_project"))
-        track_tokens(provider="mock", model="mock-model", prompt_tokens=p_tokens, completion_tokens=c_tokens, cost_usd=0.0001, project_id=target_pid)
+        target_pid = self.target_project_id or os.getenv("PROJECT_ID", getattr(settings, "PROJECT_ID", "default_project"))
+        print(f"  ⚠️ [MOCK EXECUTION] Model '{self.model_name}' used simulated offline response (Project: '{target_pid}').")
+        track_tokens(provider="mock", model=self.model_name, prompt_tokens=p_tokens, completion_tokens=c_tokens, cost_usd=0.0001, project_id=target_pid)
         return ChatResult(generations=[generation])
 
     @property
@@ -147,6 +151,20 @@ class MockChatModel(BaseChatModel):
 
     def bind_tools(self, tools: Any, **kwargs: Any) -> Any:
         return self
+
+
+def infer_provider_from_model(model_name: str) -> Optional[str]:
+    """Infers provider name from model identifier prefixes."""
+    m = model_name.lower()
+    if m.startswith("openai/gpt-oss") or m.startswith("llama-") or m.startswith("mixtral-"):
+        return "groq"
+    elif m.startswith("gpt-") or m.startswith("o1-") or m.startswith("o3-"):
+        return "openai"
+    elif m.startswith("claude-"):
+        return "anthropic"
+    elif m.startswith("gemini-"):
+        return "google"
+    return None
 
 
 def get_chat_model(
@@ -169,11 +187,17 @@ def get_chat_model(
     """
     target_pid = (project_id or os.getenv("PROJECT_ID", getattr(settings, "PROJECT_ID", "default_project"))).strip()
     sanitized_pid = re.sub(r"[^A-Za-z0-9_]", "_", target_pid).upper()
-    target_provider = (provider or os.getenv("LLM_PROVIDER") or settings.LLM_PROVIDER).lower().strip()
+    target_provider = (provider or os.getenv(f"PROJECT_{sanitized_pid}_PROVIDER") or os.getenv("LLM_PROVIDER") or settings.LLM_PROVIDER).lower().strip()
     target_temperature = temperature if temperature is not None else settings.LLM_TEMPERATURE
     
     # Priority: 1. Passed model arg, 2. Project-specific default model, 3. Global LLM_MODEL
     target_model = model or os.getenv(f"PROJECT_{sanitized_pid}_DEFAULT_MODEL") or os.getenv("LLM_MODEL")
+
+    # If provider is not explicitly passed as an argument, auto-align with model prefix if known
+    if not provider and target_model:
+        inferred = infer_provider_from_model(target_model)
+        if inferred and target_provider != inferred:
+            target_provider = inferred
 
     # Set default model if none specified
     if not target_model:
@@ -190,6 +214,8 @@ def get_chat_model(
         else:
             target_model = "default-model"
 
+    print(f"  🤖 [LLM Call] Project: '{target_pid}' | Provider: [{target_provider.upper()}] | Model: '{target_model}'")
+
     # 🛡️ POLICY ENFORCEMENT GATE: Check allowed models whitelist for this specific project
     allowed_models = get_allowed_models_list(target_pid)
     if allowed_models and target_model not in allowed_models and target_provider != "mock":
@@ -205,12 +231,14 @@ def get_chat_model(
     else:
         callbacks = [existing_callbacks, tracker]
 
+    mock_instance = MockChatModel(model_name=target_model, target_project_id=target_pid)
+
     if target_provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY
         if not api_key or api_key.startswith("sk-..."):
             if allow_mock_fallback:
                 print(f"[WARN] OPENAI_API_KEY not set. Using MockChatModel for offline execution.")
-                return MockChatModel()
+                return mock_instance
             raise ValueError("OPENAI_API_KEY environment variable is missing or placeholder.")
         from langchain_openai import ChatOpenAI
         chat = ChatOpenAI(model=target_model, temperature=target_temperature, api_key=api_key, callbacks=callbacks, **kwargs)
@@ -220,7 +248,7 @@ def get_chat_model(
         if not api_key or api_key.startswith("sk-ant-..."):
             if allow_mock_fallback:
                 print(f"[WARN] ANTHROPIC_API_KEY not set. Using MockChatModel for offline execution.")
-                return MockChatModel()
+                return mock_instance
             raise ValueError("ANTHROPIC_API_KEY environment variable is missing or placeholder.")
         from langchain_anthropic import ChatAnthropic
         chat = ChatAnthropic(model=target_model, temperature=target_temperature, api_key=api_key, callbacks=callbacks, **kwargs)
@@ -229,8 +257,8 @@ def get_chat_model(
         api_key = os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
         if not api_key or api_key.startswith("AIzaSy..."):
             if allow_mock_fallback:
-                print(f"[WARN] GOOGLE_API_KEY not set. Using MockChatModel for offline execution.")
-                return MockChatModel()
+                print(f"[WARN] GOOGLE_API_KEY not set or placeholder. Using MockChatModel for offline execution.")
+                return mock_instance
             raise ValueError("GOOGLE_API_KEY environment variable is missing or placeholder.")
         from langchain_google_genai import ChatGoogleGenerativeAI
         chat = ChatGoogleGenerativeAI(model=target_model, temperature=target_temperature, google_api_key=api_key, callbacks=callbacks, **kwargs)
@@ -240,7 +268,7 @@ def get_chat_model(
         if not api_key or api_key.startswith("gsk_..."):
             if allow_mock_fallback:
                 print(f"[WARN] GROQ_API_KEY not set. Using MockChatModel for offline execution.")
-                return MockChatModel()
+                return mock_instance
             raise ValueError("GROQ_API_KEY environment variable is missing or placeholder.")
         from langchain_groq import ChatGroq
         chat = ChatGroq(model_name=target_model, temperature=target_temperature, groq_api_key=api_key, callbacks=callbacks, **kwargs)
@@ -252,52 +280,89 @@ def get_chat_model(
         except Exception as e:
             if allow_mock_fallback:
                 print(f"[WARN] ChatOllama failed ({e}). Falling back to MockChatModel.")
-                return MockChatModel()
+                return mock_instance
             raise e
 
     elif target_provider == "mock":
-        return MockChatModel()
+        return mock_instance
 
     else:
         # Fallback to OpenAI-compatible generic or mock
         if allow_mock_fallback:
             print(f"[WARN] Unknown provider '{target_provider}'. Falling back to MockChatModel.")
-            return MockChatModel()
-        chat = MockChatModel()
+            return mock_instance
+        chat = mock_instance
 
     if allow_mock_fallback:
-        return chat.with_fallbacks([MockChatModel()])
+        return chat.with_fallbacks([mock_instance])
     return chat
 
 
-def prompt_model_selection() -> tuple[str, str]:
-    """Interactive prompt for switching provider and model at runtime."""
-    print("\n--- Select LLM Provider ---")
+def prompt_model_selection(project_id: Optional[str] = None) -> tuple[str, str]:
+    """Interactive prompt for switching provider and model at runtime, supporting project isolation."""
+    target_pid = (project_id or "").strip()
+    sanitized_pid = re.sub(r"[^A-Za-z0-9_]", "_", target_pid).upper() if target_pid else None
+
+    current_p = (
+        os.getenv(f"PROJECT_{sanitized_pid}_PROVIDER")
+        if sanitized_pid
+        else None
+    ) or os.getenv("LLM_PROVIDER") or settings.LLM_PROVIDER
+
+    print(f"\n--- Select LLM Provider{' for Project [' + target_pid + ']' if target_pid else ''} ---")
     providers = list(RECOMMENDED_MODELS.keys())
     for idx, p in enumerate(providers, 1):
-        print(f"  [{idx}] {p.upper()}")
-    choice = input(f"Choose provider [1-{len(providers)}] (Default: {settings.LLM_PROVIDER}): ").strip()
+        active_flag = " (Current)" if p.lower() == current_p.lower() else ""
+        print(f"  [{idx}] {p.upper()}{active_flag}")
+    choice = input(f"Choose provider [1-{len(providers)}] (Default: {current_p}): ").strip()
     
     if choice.isdigit() and 1 <= int(choice) <= len(providers):
         selected_provider = providers[int(choice) - 1]
     else:
-        selected_provider = settings.LLM_PROVIDER
+        selected_provider = current_p
 
-    models = RECOMMENDED_MODELS.get(selected_provider, ["default"])
-    print(f"\n--- Recommended Models for {selected_provider.upper()} ---")
-    for idx, m in enumerate(models, 1):
+    # Check if there is a project-specific whitelist
+    project_allowed = get_allowed_models_list(target_pid) if target_pid else []
+    recommended = RECOMMENDED_MODELS.get(selected_provider, ["default"])
+
+    print(f"\n--- Available Models for {selected_provider.upper()} ---")
+    if project_allowed:
+        print(f"🛡️ Project Whitelist ({target_pid}): {', '.join(project_allowed)}")
+        # Prioritize models in the provider list that are allowed
+        display_models = [m for m in project_allowed if m in recommended or any(p in m.lower() for p in (selected_provider, "llama", "gemini", "gpt", "claude"))]
+        if not display_models:
+            display_models = recommended
+    else:
+        display_models = recommended
+
+    for idx, m in enumerate(display_models, 1):
         print(f"  [{idx}] {m}")
     print(f"  [C] Custom model name")
-    m_choice = input(f"Choose model [1-{len(models)}/C] (Default: {models[0]}): ").strip()
+    default_m = display_models[0] if display_models else "default-model"
+    m_choice = input(f"Choose model [1-{len(display_models)}/C] (Default: {default_m}): ").strip()
 
     if m_choice.lower() == "c":
         selected_model = input("Enter custom model string: ").strip()
-    elif m_choice.isdigit() and 1 <= int(m_choice) <= len(models):
-        selected_model = models[int(m_choice) - 1]
+    elif m_choice.isdigit() and 1 <= int(m_choice) <= len(display_models):
+        selected_model = display_models[int(m_choice) - 1]
     else:
-        selected_model = models[0]
+        selected_model = default_m
 
-    os.environ["LLM_PROVIDER"] = selected_provider
-    os.environ["LLM_MODEL"] = selected_model
-    print(f"\n Active Model set to: [{selected_provider.upper()}] -> {selected_model}\n")
+    if sanitized_pid:
+        os.environ[f"PROJECT_{sanitized_pid}_PROVIDER"] = selected_provider
+        os.environ[f"PROJECT_{sanitized_pid}_DEFAULT_MODEL"] = selected_model
+        update_env_file({
+            f"PROJECT_{sanitized_pid}_PROVIDER": selected_provider,
+            f"PROJECT_{sanitized_pid}_DEFAULT_MODEL": selected_model,
+        })
+        print(f"\n✅ Project [{target_pid}] Model set to: [{selected_provider.upper()}] -> {selected_model} (saved to .env)\n")
+    else:
+        os.environ["LLM_PROVIDER"] = selected_provider
+        os.environ["LLM_MODEL"] = selected_model
+        update_env_file({
+            "LLM_PROVIDER": selected_provider,
+            "LLM_MODEL": selected_model,
+        })
+        print(f"\n✅ Global Model set to: [{selected_provider.upper()}] -> {selected_model} (saved to .env)\n")
+
     return selected_provider, selected_model

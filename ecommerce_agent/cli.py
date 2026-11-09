@@ -4,6 +4,8 @@ Interactive Terminal CLI Runner with Real-Time SQLite Inventory
 """
 
 import sys
+import os
+import argparse
 import uuid
 import time
 from pathlib import Path
@@ -28,7 +30,8 @@ from shared.metrics import (
     track_workflow_duration,
     track_agent_iterations
 )
-from shared.config import settings
+from shared.config import settings, update_env_file
+from shared.llm_factory import prompt_model_selection, infer_provider_from_model
 from ecommerce_agent.data.catalog import ABANDONED_CART_PRESETS, PRODUCT_CATALOG
 from ecommerce_agent.core.graph import build_cart_recovery_graph
 from ecommerce_agent.core.checkpoint import get_sqlite_checkpointer
@@ -201,9 +204,46 @@ def display_agent_step(node_name: str, updates: dict, state: dict):
 
 
 def run_ecommerce_cli():
+    # Parse CLI flags for model/provider override
+    parser = argparse.ArgumentParser(description="Autonomous E-Commerce Cart Recovery Swarm CLI")
+    parser.add_argument("--provider", type=str, help="Override LLM provider for ecommerce project (e.g. groq, openai, google, anthropic)")
+    parser.add_argument("--model", type=str, help="Override LLM model name for ecommerce project (e.g. llama-3.3-70b-versatile)")
+    args, _ = parser.parse_known_args()
+
+    env_updates = {}
+    if args.model:
+        m_val = args.model.strip()
+        os.environ["PROJECT_ECOMMERCE_RECOVERY_DEFAULT_MODEL"] = m_val
+        env_updates["PROJECT_ECOMMERCE_RECOVERY_DEFAULT_MODEL"] = m_val
+        if not args.provider:
+            inferred = infer_provider_from_model(m_val)
+            if inferred:
+                os.environ["PROJECT_ECOMMERCE_RECOVERY_PROVIDER"] = inferred
+                env_updates["PROJECT_ECOMMERCE_RECOVERY_PROVIDER"] = inferred
+
+    if args.provider:
+        p_val = args.provider.lower().strip()
+        os.environ["PROJECT_ECOMMERCE_RECOVERY_PROVIDER"] = p_val
+        env_updates["PROJECT_ECOMMERCE_RECOVERY_PROVIDER"] = p_val
+
+    if env_updates:
+        update_env_file(env_updates)
+
+    active_provider = (
+        os.getenv("PROJECT_ECOMMERCE_RECOVERY_PROVIDER")
+        or os.getenv("LLM_PROVIDER")
+        or settings.LLM_PROVIDER
+    ).upper()
+    active_model = (
+        os.getenv("PROJECT_ECOMMERCE_RECOVERY_DEFAULT_MODEL")
+        or os.getenv("LLM_MODEL")
+        or "default-model"
+    )
+
     print("\n" + "=" * 78)
     print(" 🛒  AUTONOMOUS E-COMMERCE CART RECOVERY & HIGH-MARGIN BUNDLE SWARM")
     print("=" * 78)
+    print(f" ⚙️  Project LLM Model       : [{active_provider}] -> {active_model} (Project: ecommerce_recovery)")
 
     # 1. Start Prometheus metrics server & sync inventory gauges
     start_metrics_server_once(settings.PROMETHEUS_PORT)
@@ -218,16 +258,30 @@ def run_ecommerce_cli():
 
     # 3. Select an Abandoned Cart Scenario or Enter Custom Query
     while True:
+        curr_p = (
+            os.getenv("PROJECT_ECOMMERCE_RECOVERY_PROVIDER")
+            or os.getenv("LLM_PROVIDER")
+            or settings.LLM_PROVIDER
+        ).upper()
+        curr_m = (
+            os.getenv("PROJECT_ECOMMERCE_RECOVERY_DEFAULT_MODEL")
+            or os.getenv("LLM_MODEL")
+            or "default-model"
+        )
         print("Select an Abandoned Cart Scenario:")
         for idx, preset in enumerate(ABANDONED_CART_PRESETS, 1):
             total = sum([i["price"] for i in preset["cart_items"]])
             print(f"  [{idx}] {preset['customer_name'].ljust(16)} | Cart: ${total:<6.2f} | Exit: {preset['exit_point'].ljust(20)}")
             print(f"      └─ Scenario: {preset['description']}")
+        print(f"  [M] 🔄 Switch E-Commerce Model & Provider (Current: [{curr_p}] {curr_m})")
         print(f"  [I] 📦 Inspect Live Warehouse Inventory & Overstock Levels (SQLite)")
         print(f"  [C] ✍️  Custom Manual Query (Enter your own customer, product & exit reason)")
 
-        choice = input("\nChoose Scenario [1-6/I/C] (Default: 1): ").strip().upper()
-        if choice == "I":
+        choice = input("\nChoose Scenario [1-6/M/I/C] (Default: 1): ").strip().upper()
+        if choice == "M":
+            prompt_model_selection(project_id="ecommerce_recovery")
+            continue
+        elif choice == "I":
             display_inventory_table()
             continue
         break
@@ -417,6 +471,10 @@ def run_ecommerce_cli():
     print(f"  • Raw Prometheus Metrics Exporter    : http://localhost:{settings.PROMETHEUS_PORT}/metrics")
     print("-" * 78)
     print(f"🎉 Cart Recovery Workflow Completed: Status = {final_res.get('execution_status', '').upper()}\n")
+    print("=" * 78)
+    print("📡 Prometheus Telemetry Server is running on http://localhost:8000/metrics")
+    print("   Open Grafana now to inspect live charts: http://localhost:3000/d/llm-agent-tracker")
+    input("👉 Press [Enter] to exit and stop the telemetry server...")
 
 
 if __name__ == "__main__":

@@ -77,7 +77,18 @@ def copywriter_agent(state: CartRecoveryState) -> dict:
         elif line.startswith("SMS:"):
             sms_text = line.replace("SMS:", "").strip()
 
-    if "<html>" in content.lower() or "<div" in content:
+    if "HTML:" in content:
+        extracted = content.split("HTML:", 1)[1].strip()
+        if extracted.startswith("```"):
+            lines = extracted.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            extracted = "\n".join(lines).strip()
+        if "<" in extracted and ">" in extracted:
+            html_body = extracted
+    elif "<html>" in content.lower() or "<div" in content:
         html_body = content
 
     return {

@@ -201,7 +201,7 @@
           "links": [
             {
               "title": "Inspect Node in LangSmith ➔",
-              "url": "https://smith.langchain.com/o/default/projects/p/AgentOps-Sentinel?filter=tag:${__data.fields.node_name}",
+              "url": "https://smith.langchain.com/o/default/projects/p/langgraph-observability-course?filter=tag:${__data.fields.node_name}",
               "targetBlank": true
             }
           ],
@@ -221,7 +221,7 @@
           "links": [
             {
               "title": "Inspect Errors in LangSmith ➔",
-              "url": "https://smith.langchain.com/o/default/projects/p/AgentOps-Sentinel?filter=tag:${__data.fields.node_name}",
+              "url": "https://smith.langchain.com/o/default/projects/p/langgraph-observability-course?filter=tag:${__data.fields.node_name}",
               "targetBlank": true
             }
           ],
@@ -254,7 +254,7 @@
       "id": 12,
       "title": "Tool Invocation Frequency",
       "type": "bargauge",
-      "targets": [{ "expr": "sum(increase(langgraph_tool_invocations_total[15m])) by (tool_name)", "legendFormat": "{{tool_name}}" }]
+      "targets": [{ "expr": "sum(langgraph_tool_invocations_total) by (tool_name)", "legendFormat": "{{tool_name}}" }]
     }
   ],
   "refresh": "5s",
